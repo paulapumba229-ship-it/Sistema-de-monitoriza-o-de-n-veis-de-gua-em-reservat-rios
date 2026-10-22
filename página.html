@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Nível de Água</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f0f4f8;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #1e293b;
+        }
+
+        /* Estrutura do Reservatório */
+        .tank-wrapper {
+            position: relative;
+            width: 160px;
+            height: 250px;
+            margin: 0 auto 20px auto;
+            border: 4px solid #475569;
+            border-top: none; /* Deixa a parte superior aberta ou com aspeto de tanque */
+            border-radius: 0 0 15px 15px;
+            background-color: #f8fafc;
+            overflow: hidden;
+        }
+
+        /* Água dentro do reservatório */
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 0%; /* Valor inicial */
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+            transition: height 0.5s ease, background-color 0.5s ease;
+        }
+
+        /* Linhas indicadoras no reservatório */
+        .indicator-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            z-index: 2;
+            left: 0;
+        }
+
+        /* Posições das linhas baseadas nas percentagens (100%, 60%, 15%) */
+        .line-100 { top: 0%; background-color: #22c55e; } /* Verde */
+        .line-60 { top: 40%; background-color: #eab308; }  /* Amarelo (100% - 60% = 40% a partir do topo) */
+        .line-15 { top: 85%; background-color: #ef4444; }  /* Vermelho (100% - 15% = 85% a partir do topo) */
+
+        /* Informações e Texto */
+        .info {
+            margin-bottom: 20px;
+        }
+
+        .percentage {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0f172a;
+            margin-bottom: 5px;
+        }
+
+        /* Caixa de Alerta */
+        .alert-box {
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .alert-normal {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+
+        .alert-warning {
+            background-color: #fef9c3;
+            color: #854d0e;
+            border: 1px solid #fde047;
+        }
+
+        .alert-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .alert-success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        /* Botões de Controlo para Simulação */
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            color: white;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-danger { background-color: #ef4444; }
+        .btn-warning { background-color: #eab308; color: #713f12; }
+        .btn-success { background-color: #22c55e; }
+        .btn-auto { background-color: #3b82f6; width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Monitor do Reservatório</h1>
+
+        <!-- Desenho do Reservatório -->
+        <div class="tank-wrapper">
+            <!-- Linhas indicadoras visuais -->
+            <div class="indicator-line line-100" title="Cheio (100%)"></div>
+            <div class="indicator-line line-60" title="Médio (60%)"></div>
+            <div class="indicator-line line-15" title="Baixo (15%)"></div>
+            
+            <!-- Nível da Água -->
+            <div id="waterLevel" class="water"></div>
+        </div>
+
+        <!-- Indicador Numérico -->
+        <div class="info">
+            <div id="percentageText" class="percentage">0%</div>
+        </div>
+
+        <!-- Mensagem de Alerta -->
+        <div id="alertBox" class="alert-box alert-normal">
+            A aguardar dados do sensor...
+        </div>
+
+        <!-- Botões para testar manualmente os níveis pedidos -->
+        <div class="controls">
+            <button class="btn-danger" onclick="setWaterLevel(15)">15% (Baixo)</button>
+            <button class="btn-warning" onclick="setWaterLevel(60)">60% (Médio)</button>
+            <button class="btn-success" onclick="setWaterLevel(100)">100% (Cheio)</button>
+        </div>
+        
+        <!-- Botão para simulação automática contínua -->
+        <button class="btn-auto" onclick="toggleAutoSimulation()">Modo Automático</button>
+    </div>
+
+    <script>
+        const waterElement = document.getElementById('waterLevel');
+        const percentageText = document.getElementById('percentageText');
+        const alertBox = document.getElementById('alertBox');
+
+        let autoInterval = null;
+        let simulatingUp = true;
+        let currentLevel = 15;
+
+        // Função principal que atualiza a interface com base no nível escolhido
+        function setWaterLevel(nivel) {
+            // Garante os limites entre 0 e 100
+            if (nivel < 0) nivel = 0;
+            if (nivel > 100) nivel = 100;
+
+            currentLevel = nivel;
+
+            // Atualiza a altura visual da água
+            waterElement.style.height = nivel + '%';
+            percentageText.textContent = nivel + '%';
+
+            // Verifica as condições exatas pedidas (15%, 60%, 100% ou estados intermédios)
+            if (nivel <= 15) {
+                alertBox.className = "alert-box alert-danger";
+                alertBox.textContent = "ALERTA: Nível de água baixo (15% ou menos)! Risco de esvaziamento.";
+            } else if (nivel === 60) {
+                alertBox.className = "alert-box alert-warning";
+                alertBox.textContent = "AVISO: Reservatório a nível médio (60%).";
+            } else if (nivel === 100) {
+                alertBox.className = "alert-box alert-success";
+                alertBox.textContent = "ESTADO: Reservatório totalmente cheio (100%).";
+            } else {
+                // Caso esteja num valor entre os patamares
+                alertBox.className = "alert-box alert-normal";
+                alertBox.textContent = `Nível atual estável em ${nivel}%.`;
+            }
+        }
+
+        // Simulação automática (opcional para ver a água a subir e descer sozinha)
+        function toggleAutoSimulation() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                event.target.textContent = "Modo Automático";
+            } else {
+                event.target.textContent = "Parar Simulação";
+                autoInterval = setInterval(() => {
+                    if (simulatingUp) {
+                        currentLevel += 5;
+                        if (currentLevel >= 100) simulatingUp = false;
+                    } else {
+                        currentLevel -= 5;
+                        if (currentLevel <= 15) simulatingUp = true;
+                    }
+                    setWaterLevel(currentLevel);
+                }, 800);
+            }
+        }
+
+        // Inicializa no nível baixo (15%) por defeito ao abrir a página
+        setWaterLevel(15);
+    </script>
+
+</body>
+</html>
+
